@@ -128,6 +128,7 @@ export default function Home(){
         onClose={() => setIsAddModalOpen(false)}
         myInfluencers={myInfluencers}
         onAdd={handleAddInfluencer}
+        currentWalletAddress={walletAddress}
       />
 
     </Page>
