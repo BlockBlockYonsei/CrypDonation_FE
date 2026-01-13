@@ -1,14 +1,34 @@
 {
-    "김똘복" : {
-        "description" : "ㅎ2"
-    },
-    "윤가놈" : {
-        "description" : "윤가놈임 윤진석"
-    },
-    "지누" : {
-        "description" : "지누입니다"
-    },
-    "침착맨" : {
-        "description" : "안녕하세요? 침착맨입니다. 반가워요."
-    }
+  "김똘복": {
+    "description": "ㅎ2",
+    "creator_urls": [
+      "https://www.youtube.com/@%EA%B9%80%EB%98%98%EB%B3%B5",
+      "https://chzzk.naver.com/57fd052838434874068eafdd2cb581b3"
+    ],
+    "tags": [1, 2, 7]
+  },
+  "윤가놈": {
+    "description": "윤가놈임 윤진석",
+    "creator_urls": [
+      "https://www.youtube.com/@Chzzk_GGN",
+      "https://chzzk.naver.com/1ad5aa0f6c6741b072528fad5e5e76b1"
+    ],
+    "tags": [2, 8, 12]
+  },
+  "지누": {
+    "description": "지누입니다",
+    "creator_urls": [
+      "https://www.youtube.com/@%EC%A7%80%EB%88%84",
+      "https://chzzk.naver.com/2086f44c7b09a17cef6786f21389db3b"
+    ],
+    "tags": [2, 8]
+  },
+  "침착맨": {
+    "description": "안녕하세요? 침착맨입니다. 반가워요.",
+    "creator_urls": [
+      "https://www.youtube.com/@ChimChakMan_Official",
+      "https://chzzk.naver.com/bb382c2c0cc9fa7c86ab3b037fb5799c"
+    ],
+    "tags": [2, 8, 10]
+  }
 }
