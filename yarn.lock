@@ -2332,6 +2332,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tanstack/query-devtools@npm:5.92.0":
+  version: 5.92.0
+  resolution: "@tanstack/query-devtools@npm:5.92.0"
+  checksum: 10c0/3e41da3c47881b6190d954b60cc0f93f11251ff3066b68b7312eee5696ff114ce078309ed7ec80cd85a5b7a56ed0360fb2048d204ec459ab05f4a3c11268f6ce
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-query-devtools@npm:^5.91.2":
+  version: 5.91.2
+  resolution: "@tanstack/react-query-devtools@npm:5.91.2"
+  dependencies:
+    "@tanstack/query-devtools": "npm:5.92.0"
+  peerDependencies:
+    "@tanstack/react-query": ^5.90.14
+    react: ^18 || ^19
+  checksum: 10c0/afb267583d5df1311cf184095f97211df8d769be22cf5966d9ba0defbe341cdd728d035213df7b377483f8721f86dbaff9fab809c97b587c7d97620953e40d68
+  languageName: node
+  linkType: hard
+
 "@tanstack/react-query@npm:^5.90.19":
   version: 5.90.19
   resolution: "@tanstack/react-query@npm:5.90.19"
@@ -2604,6 +2623,7 @@ __metadata:
     "@radix-ui/react-tooltip": "npm:^1.1.8"
     "@radix-ui/themes": "npm:^3.2.1"
     "@tanstack/react-query": "npm:^5.90.19"
+    "@tanstack/react-query-devtools": "npm:^5.91.2"
     "@types/node": "npm:^20.10.0"
     "@types/react": "npm:18"
     "@types/react-dom": "npm:18"
