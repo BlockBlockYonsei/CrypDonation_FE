@@ -1,3 +1,14 @@
+// src/pages/FundingFullPage.tsx
+// Funding (결제/컨펌) 페이지
+// - 특정 프로젝트(id)에 대해 펀딩 금액/리워드/슬리피지 등을 입력받고, 플랫폼 수수료 + 예상 가스비를 합산해 총 결제 예상액을 표시
+// - 현재는 mockProjects 기반 UI이며, 실제 온체인 결제(Sui/Slush) 트랜잭션은 아직 미연결
+
+// Imports
+// - React hook: 입력값 상태 관리
+// - Router: URL 파라미터(id) 및 뒤로가기 링크
+// - Icons: UI 시각 요소
+// - Components: Navigation
+// - Mock data: 추후 API/인덱서/온체인 조회로 교체 예정
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, Info, ExternalLink } from 'lucide-react';
@@ -5,12 +16,22 @@ import Navigation from '../components/Navigation';
 import { mockProjects } from '../data/mockData';
 
 export default function FundingFullPage() {
+  // Routing & Data
+  // - URL 파라미터(id)로 프로젝트를 식별
+  // - 현재는 mockProjects에서 조회(추후 API/인덱서/온체인 조회로 교체)
   const { id } = useParams();
   const project = mockProjects.find((p) => p.id === id);
+
+  // State
+  // - amount: 사용자가 입력한 펀딩 금액(입력값 그대로 받기 위해 string)
+  // - selectedReward: 선택한 리워드 티어 id(미선택은 빈 문자열)
+  // - slippage: 슬리피지 허용치(현재 UI만 존재, 트랜잭션 파라미터 미연결)
   const [amount, setAmount] = useState<string>('');
   const [selectedReward, setSelectedReward] = useState<string>('');
   const [slippage, setSlippage] = useState<string>('0.5');
 
+  // Guard
+  // - 유효하지 않은 id로 프로젝트를 찾지 못하면 안내 화면 렌더링
   if (!project) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -22,6 +43,11 @@ export default function FundingFullPage() {
     );
   }
 
+  // Derived Values (Fees/Total)
+  // - estimatedGasFee: 현재는 고정값 목업(실서비스에서는 네트워크/트랜잭션 유형에 따라 동적 산출 필요)
+  // - platformFee: 입력 금액의 2%
+  // - totalAmount: 펀딩금액 + 가스비 + 플랫폼 수수료
+  //   (현재 UI에 USD/ETH 표기가 섞여 있으므로, 실제 서비스에서는 토큰/통화 단위를 일관되게 맞추는 것이 전제)
   const estimatedGasFee = 0.003;
   const platformFee = parseFloat(amount || '0') * 0.02;
   const totalAmount = parseFloat(amount || '0') + estimatedGasFee + platformFee;
@@ -31,7 +57,7 @@ export default function FundingFullPage() {
       <Navigation />
 
       <main className="mx-auto max-w-[1440px] px-8 py-8">
-        {/* Back Button */}
+        {/* Back to Project */}
         <Link
           to={`/project/${id}`}
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
@@ -41,12 +67,12 @@ export default function FundingFullPage() {
         </Link>
 
         <div className="grid grid-cols-3 gap-8">
-          {/* Left: Main Form */}
+          {/* Left: Input Form */}
           <div className="col-span-2 space-y-6">
             <div className="bg-white rounded-lg p-8">
               <h1 className="text-2xl font-semibold text-gray-900 mb-6">Fund This Project</h1>
 
-              {/* Project Summary */}
+              {/* Project Snapshot */}
               <div className="border border-gray-200 rounded-lg p-4 mb-6">
                 <div className="flex gap-4">
                   <img
@@ -94,7 +120,7 @@ export default function FundingFullPage() {
                 </div>
               </div>
 
-              {/* Reward Selection */}
+              {/* Reward Selection (Optional) */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-900 mb-3">
                   Select Reward (Optional)
@@ -183,7 +209,7 @@ export default function FundingFullPage() {
               </div>
             </div>
 
-            {/* Transaction Details */}
+            {/* Transaction Details (sample placeholders) */}
             <div className="bg-white rounded-lg p-8">
               <h3 className="font-semibold text-gray-900 mb-4">Transaction Details</h3>
 
@@ -210,7 +236,7 @@ export default function FundingFullPage() {
           {/* Right: Summary Sidebar */}
           <div className="col-span-1">
             <div className="sticky top-24 space-y-6">
-              {/* Summary Card */}
+              {/* Summary */}
               <div className="bg-white rounded-lg p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Summary</h3>
 
@@ -238,6 +264,7 @@ export default function FundingFullPage() {
                   </div>
                 </div>
 
+                {/* Confirm Action (tx send/sign will be wired later) */}
                 <button
                   disabled={!amount || parseFloat(amount) <= 0}
                   className="w-full h-12 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -246,7 +273,7 @@ export default function FundingFullPage() {
                 </button>
               </div>
 
-              {/* Risk Warning */}
+              {/* Important Notice */}
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <div className="flex gap-2">
                   <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
@@ -260,7 +287,7 @@ export default function FundingFullPage() {
                 </div>
               </div>
 
-              {/* Support Info */}
+              {/* Help / Documentation */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Need Help?</h4>
                 <p className="text-xs text-gray-600 mb-3">
