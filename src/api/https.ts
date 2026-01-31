@@ -45,6 +45,24 @@ async function parseJsonSafe(res: Response) {
   }
 }
 
+// ✅ Dev auth header auto-injection
+// - Landing 페이지에서 localStorage("connectedWalletAddress")에 지갑주소를 저장해두는 구조라면
+//   API 레이어에서 자동으로 x-wallet-address 헤더를 붙여주면(옵션으로 매번 넘기지 않아도)
+//   BE auth.js의 401을 바로 해결할 수 있음.
+function getDevWalletAddressFromStorage(): string | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const v = window.localStorage.getItem("connectedWalletAddress");
+    if (!v) return null;
+
+    // 최소한의 형식 체크(잘린 주소/객체 문자열 방지)
+    if (!/^0x[0-9a-fA-F]+$/.test(v)) return null;
+    return v;
+  } catch {
+    return null;
+  }
+}
+
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const url = buildUrl(path);
   const method = options.method ?? "GET";
@@ -53,6 +71,14 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     Accept: "application/json",
     ...(options.headers ?? {}),
   };
+
+  // ✅ Dev: 지갑 연결이 되어있으면 자동으로 x-wallet-address 주입
+  // - options.headers로 명시적으로 넘겼다면 그 값을 우선함(덮어쓰지 않음)
+  // - Bearer 토큰을 쓰는 경우(추후)에도 options.headers.Authorization이 있으면 그대로 사용
+  if (!headers["x-wallet-address"]) {
+    const devWallet = getDevWalletAddressFromStorage();
+    if (devWallet) headers["x-wallet-address"] = devWallet;
+  }
 
   let body: BodyInit | undefined;
 

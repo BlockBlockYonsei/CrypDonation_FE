@@ -1,9 +1,24 @@
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+import path from 'path';
 
-  import { defineConfig } from 'vite';
-  import react from '@vitejs/plugin-react-swc';
-  import path from 'path';
+export default defineConfig(({ mode }) => {
+  // .env, .env.development, .env.production 등에서 값을 읽어옵니다.
+  // - 로컬 개발: VITE_API_PROXY_TARGET=http://localhost:4000
+  // - 배포(AWS): VITE_API_BASE_URL=https://api.your-domain.com (프론트에서 직접 호출)
+  const env = loadEnv(mode, process.cwd(), "");
 
-  export default defineConfig({
+  // 1) dev proxy 타겟(권장): VITE_API_PROXY_TARGET
+  // 2) 프론트에서 직접 호출할 API 베이스: VITE_API_BASE_URL
+  // 둘 다 없으면 로컬 백엔드(4000)를 기본값으로 사용
+  const rawTarget = env.VITE_API_PROXY_TARGET || env.VITE_API_BASE_URL || "http://localhost:4000";
+  const apiTarget = rawTarget.replace(/\/$/, "");
+
+  // 배포 환경에서는 보통 프론트가 백엔드를 직접 호출하므로 proxy를 끄고 싶을 수 있습니다.
+  // 필요 시 .env.production 에서 VITE_DISABLE_PROXY=true 로 설정하세요.
+  const disableProxy = env.VITE_DISABLE_PROXY === "true";
+
+  return {
     plugins: [react()],
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
@@ -54,7 +69,18 @@
       outDir: 'build',
     },
     server: {
-      port: 3000,
-      open: true,
+      // 로컬 개발에서만 /api 를 백엔드로 프록시
+      // 배포에서는 보통 프론트가 백엔드를 직접 호출(VITE_API_BASE_URL)하므로 proxy 비활성화 권장
+      proxy: disableProxy
+        ? undefined
+        : {
+            "/api": {
+              target: apiTarget,
+              changeOrigin: true,
+              // AWS ALB/NGINX 뒤에 붙을 때 path가 꼬이지 않게 그대로 유지
+              // 필요하면 rewrite를 추가로 설정 가능
+            },
+          },
     },
-  });
+  };
+});

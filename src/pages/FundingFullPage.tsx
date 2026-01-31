@@ -9,18 +9,117 @@
 // - Icons: UI 시각 요소
 // - Components: Navigation
 // - Mock data: 추후 API/인덱서/온체인 조회로 교체 예정
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, Info, ExternalLink } from 'lucide-react';
 import Navigation from '../components/Navigation';
-import { mockProjects } from '../data/mockData';
+
+
+// Types (UI에서 사용하는 최소 형태)
+type Reward = {
+  id: string;
+  amount: number;
+  title: string;
+  description: string;
+  available: number;
+};
+
+type FundingProject = {
+  id: string;
+  title: string;
+  description: string;
+  thumbnailUrl: string;
+  goalAmount: number;
+  daysLeft: number;
+  rewards: Reward[];
+};
 
 export default function FundingFullPage() {
+
+  
   // Routing & Data
   // - URL 파라미터(id)로 프로젝트를 식별
   // - 현재는 mockProjects에서 조회(추후 API/인덱서/온체인 조회로 교체)
   const { id } = useParams();
-  const project = mockProjects.find((p) => p.id === id);
+
+  function normalizeProject(raw: any): FundingProject | null {
+    if (!raw) return null;
+    const rewards = Array.isArray(raw.rewards) ? raw.rewards : [];
+    return {
+      id: String(raw.id ?? ''),
+      title: String(raw.title ?? ''),
+      description: String(raw.description ?? raw.oneLiner ?? ''),
+      thumbnailUrl: String(raw.thumbnailUrl ?? raw.coverUrl ?? raw.thumbnailImageUrl ?? raw.coverImageUrl ?? ''),
+      goalAmount: Number(raw.goalAmount ?? 0),
+      daysLeft: Number(raw.daysLeft ?? raw.durationDays ?? 0),
+      rewards: rewards.map((r: any) => ({
+        id: String(r.id ?? ''),
+        amount: Number(r.amount ?? 0),
+        title: String(r.title ?? ''),
+        description: String(r.description ?? ''),
+        available: Number(r.available ?? 0),
+      })),
+    };
+  }
+
+  // API Data
+  // - projects: 프로젝트 기본 정보(제목/커버/목표금액 등)
+  // - funding : 프로젝트 펀딩 요약(raisedAmount/supporters/items/meta)
+  // NOTE: UI는 그대로 두고, 데이터 소스만 API로 연결합니다.
+  const [projectData, setProjectData] = useState<any | null>(null);
+  const [fundingData, setFundingData] = useState<any | null>(null);
+  const [loadingProject, setLoadingProject] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (!id) {
+      setProjectData(null);
+      setFundingData(null);
+      setLoadingProject(false);
+      return;
+    }
+
+    const ac = new AbortController();
+    setLoadingProject(true);
+
+    (async () => {
+      try {
+        // 1) 프로젝트 기본 정보는 /api/projects/:id (source of truth)
+        const pRes = await fetch(`/api/projects/${id}`, { signal: ac.signal });
+        const pJson = pRes.ok ? await pRes.json() : null;
+
+        // 2) 펀딩 요약은 /api/funding/:id (없거나 404여도 프로젝트는 보여주기)
+        const fRes = await fetch(`/api/funding/${id}`, { signal: ac.signal });
+        const fJson = fRes.ok ? await fRes.json() : null;
+
+        setProjectData(pJson);
+        setFundingData(fJson);
+      } catch {
+        // Abort 포함: 조용히 처리
+        setProjectData(null);
+        setFundingData(null);
+      } finally {
+        setLoadingProject(false);
+      }
+    })();
+
+    return () => ac.abort();
+  }, [id]);
+
+  const project: FundingProject | null = useMemo(() => {
+    // 프로젝트 기본 정보가 있어야 페이지 렌더링 가능
+    if (!projectData) return null;
+
+    // funding 요약이 있으면 raisedAmount/supporters를 프로젝트 객체에 합쳐서 normalize
+    const merged = fundingData
+      ? {
+          ...projectData,
+          raisedAmount: fundingData.raisedAmount ?? projectData.raisedAmount,
+          supporters: fundingData.supporters ?? projectData.supporters,
+        }
+      : projectData;
+
+    return normalizeProject(merged);
+  }, [projectData, fundingData]);
 
   // State
   // - amount: 사용자가 입력한 펀딩 금액(입력값 그대로 받기 위해 string)
@@ -31,7 +130,19 @@ export default function FundingFullPage() {
   const [slippage, setSlippage] = useState<string>('0.5');
 
   // Guard
-  // - 유효하지 않은 id로 프로젝트를 찾지 못하면 안내 화면 렌더링
+  // - 로딩 중에는 빈 화면(혹은 최소 메시지) 유지
+  // - 로딩 완료 후에도 project가 없으면 not found
+  if (loadingProject) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <div className="max-w-[1440px] mx-auto px-8 py-16 text-center">
+          <p className="text-gray-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!project) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -140,7 +251,7 @@ export default function FundingFullPage() {
                     </div>
                   </button>
 
-                  {project.rewards.map((reward) => (
+                  {project.rewards.map((reward: Reward) => (
                     <button
                       key={reward.id}
                       onClick={() => setSelectedReward(reward.id)}

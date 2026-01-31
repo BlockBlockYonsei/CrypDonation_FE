@@ -21,6 +21,18 @@ function toQS(query?: Record<string, unknown>) {
   return s ? `?${s}` : "";
 }
 
+// ✅ Auth header helper
+// - BE auth.js: Authorization: Bearer <token> (recommended)
+// - Dev: x-wallet-address 허용
+function authHeaders(opts?: { walletAddress?: string; token?: string }) {
+  const headers: Record<string, string> = {};
+
+  if (opts?.token) headers["Authorization"] = `Bearer ${opts.token}`;
+  if (opts?.walletAddress) headers["x-wallet-address"] = opts.walletAddress;
+
+  return Object.keys(headers).length ? headers : undefined;
+}
+
 export const ProjectsApi = {
   list: (query?: ProjectsListQuery) =>
     api<Paginated<Project>>(`/api/projects${toQS(query)}`, { method: "GET" }),
@@ -28,12 +40,12 @@ export const ProjectsApi = {
   get: (projectId: string) =>
     api<Project>(`/api/projects/${projectId}`, { method: "GET" }),
 
-  create: (body: CreateProjectBody) =>
-    api<Project>(`/api/projects`, { method: "POST", body }),
+  create: (body: CreateProjectBody, opts?: { walletAddress?: string; token?: string }) =>
+    api<Project>(`/api/projects`, { method: "POST", body, headers: authHeaders(opts) }),
 
-  update: (projectId: string, body: UpdateProjectBody) =>
-    api<Project>(`/api/projects/${projectId}`, { method: "PUT", body }),
+  update: (projectId: string, body: UpdateProjectBody, opts?: { walletAddress?: string; token?: string }) =>
+    api<Project>(`/api/projects/${projectId}`, { method: "PATCH", body, headers: authHeaders(opts) }),
 
-  remove: (projectId: string) =>
-    api<void>(`/api/projects/${projectId}`, { method: "DELETE" }),
+  remove: (projectId: string, opts?: { walletAddress?: string; token?: string }) =>
+    api<void>(`/api/projects/${projectId}`, { method: "DELETE", headers: authHeaders(opts) }),
 };

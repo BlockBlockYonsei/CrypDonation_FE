@@ -10,7 +10,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 // [3] 아이콘(lucide-react): 지갑/복사/외부링크/시간 표시 등 UI 시각 요소
-import { Wallet, Copy, ExternalLink, Clock } from 'lucide-react';
+import { Wallet, Copy, ExternalLink } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useUserProjects, useUserStats, useUserTransactions, userKeys } from '../queries/users.queries';
+import { api } from '../api/https';
 // [4] 공통 네비게이션
 import Navigation from '../components/Navigation';
 // [5] 목업 데이터
@@ -23,81 +26,6 @@ import Navigation from '../components/Navigation';
 
 type TabType = 'created' | 'funded' | 'transactions';
 
-// =========================
-// Backend 연동용 타입/헬퍼
-// =========================
-type ApiProject = {
-  id: string;
-  title: string;
-  description?: string | null;
-  goalAmount: number;
-  ownerAddress: string;
-  createdAt: string;
-};
-
-type ApiFundedProject = ApiProject;
-
-type ApiUserTx = {
-  id: string;
-  type: 'funded' | 'created';
-  projectId?: string;
-  projectTitle: string;
-  date: string;      // ISO 또는 표시용 문자열
-  txHash: string;    // Sui digest
-  amount: number;    // 표시용(USD 등). 없으면 0
-};
-
-type ApiUserStats = {
-  createdCount: number;
-  fundedCount: number;
-  totalRaised: number;        // USD(또는 표시 통화)
-  totalContributed: string;   // SUI 단위 표시용 문자열 (예: "123.456")
-};
-
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL ?? '';
-
-async function apiGetJson<T>(path: string, opts?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}${path}`;
-
-  const res = await fetch(url, {
-    // 기본은 GET. 호출부에서 method를 바꾸고 싶으면 opts로 override 가능
-    method: 'GET',
-    // GET에서 Content-Type을 강제로 넣으면 CORS preflight(OPTIONS)를 유발할 수 있어 제거
-    headers: {
-      Accept: 'application/json',
-      ...(opts?.headers ?? {}),
-    },
-    // 쿠키/세션을 쓰는 경우에만 필요. 토큰 방식이면 제거 가능
-    credentials: 'include',
-    ...opts,
-  });
-
-  const ct = res.headers.get('content-type') || '';
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(
-      `Request failed: ${res.status} ${res.statusText} (url=${url})\n` +
-        (text ? text.slice(0, 300) : '')
-    );
-  }
-
-  // JSON이 아니면(예: HTML) 디버깅이 쉽도록 앞부분만 포함해 에러
-  if (!ct.includes('application/json')) {
-    const text = await res.text().catch(() => '');
-    throw new Error(
-      `Expected JSON but got '${ct}' (url=${url})\n` +
-        (text ? text.slice(0, 300) : '')
-    );
-  }
-
-  return (await res.json()) as T;
-}
-
-// 다른 페이지(펀딩/프로젝트 생성)에서 성공 후 아래 이벤트를 dispatch 해주면
-// UserPage가 자동으로 재조회하도록 해두었습니다.
-// 예: window.dispatchEvent(new CustomEvent('user-data-changed'))
-const USER_DATA_CHANGED_EVENT = 'user-data-changed';
 
 export default function UserPage() {
   // [7] activeTab: 현재 선택된 탭. 기본값은 'created'
@@ -194,102 +122,84 @@ export default function UserPage() {
 
 
   // =========================
-  // Backend에서 가져올 유저 데이터
+  // TanStack Query 기반 유저 데이터
   // =========================
-  const [createdProjects, setCreatedProjects] = useState<ApiProject[]>([]);
-  const [fundedProjects, setFundedProjects] = useState<ApiFundedProject[]>([]);
-  const [transactions, setTransactions] = useState<ApiUserTx[]>([]);
-  const [stats, setStats] = useState<ApiUserStats | null>(null);
+  const qc = useQueryClient();
 
-  const [userDataLoading, setUserDataLoading] = useState<boolean>(false);
-  const [userDataError, setUserDataError] = useState<string>('');
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    error: statsError,
+  } = useUserStats(walletAddress);
 
-  const refetchUserData = async (addr: string) => {
-    if (!addr) return;
-    setUserDataError('');
+  const {
+    data: createdRes,
+    isLoading: createdLoading,
+    error: createdError,
+  } = useUserProjects(walletAddress, 'created');
 
-    try {
-      setUserDataLoading(true);
+  const {
+    data: fundedRes,
+    isLoading: fundedLoading,
+    error: fundedError,
+  } = useUserProjects(walletAddress, 'funded');
 
-      // 아래 엔드포인트는 "전에 만든 백엔드"에 맞춰 경로만 바꿔주면 됩니다.
-      // 권장 형태:
-      //  - GET /api/users/:walletAddress/stats
-      //  - GET /api/users/:walletAddress/projects?type=created
-      //  - GET /api/users/:walletAddress/projects?type=funded
-      //  - GET /api/users/:walletAddress/transactions
-      const [s, created, funded, txs] = await Promise.all([
-        apiGetJson<ApiUserStats>(`/api/users/${addr}/stats`),
-        apiGetJson<ApiProject[]>(`/api/users/${addr}/projects?type=created`),
-        apiGetJson<ApiFundedProject[]>(`/api/users/${addr}/projects?type=funded`),
-        apiGetJson<ApiUserTx[]>(`/api/users/${addr}/transactions`),
-      ]);
+  const {
+    data: txRes,
+    isLoading: txLoading,
+    error: txError,
+  } = useUserTransactions(walletAddress);
 
-      setStats(s);
-      setCreatedProjects(created ?? []);
-      setFundedProjects(funded ?? []);
-      setTransactions(txs ?? []);
-    } catch (e: any) {
-      setUserDataError(e?.message || 'Failed to load user data');
-      setStats(null);
-      setCreatedProjects([]);
-      setFundedProjects([]);
-      setTransactions([]);
-    } finally {
-      setUserDataLoading(false);
-    }
-  };
+  const createdProjects = createdRes?.items ?? [];
+  const fundedProjects = fundedRes?.items ?? [];
+  const transactions = txRes?.items ?? [];
+
+  const userDataLoading = !!walletAddress && (statsLoading || createdLoading || fundedLoading || txLoading);
+  const userDataError =
+    (statsError as any)?.message ||
+    (createdError as any)?.message ||
+    (fundedError as any)?.message ||
+    (txError as any)?.message ||
+    '';
+
+  // 펀딩/생성 성공 후 이벤트가 발생하면 캐시 무효화(재조회)
+  useEffect(() => {
+    const handler = () => {
+      if (!walletAddress) return;
+      qc.invalidateQueries({ queryKey: userKeys.byAddress(walletAddress) });
+    };
+
+    window.addEventListener('user-data-changed', handler as any);
+
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === 'user-data-changed') handler();
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      window.removeEventListener('user-data-changed', handler as any);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [qc, walletAddress]);
 
   const saveProfile = async () => {
     if (!walletAddress) return;
     try {
-      await apiGetJson(`/api/users/${walletAddress}/profile`, {
+      await api(`/api/users/${walletAddress}/profile`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           displayName,
           description: profileDescription,
-        }),
+        },
       });
+
+      // 프로필이 백엔드에 저장된다면 stats 등을 다시 불러올 수 있게 invalidate
+      qc.invalidateQueries({ queryKey: userKeys.byAddress(walletAddress) });
       setIsEditModalOpen(false);
     } catch (e: any) {
       alert(e?.message || 'Failed to update profile');
     }
   };
-
-  // 지갑이 바뀌면 유저 데이터를 다시 로딩
-  useEffect(() => {
-    if (!walletAddress) {
-      setStats(null);
-      setCreatedProjects([]);
-      setFundedProjects([]);
-      setTransactions([]);
-      return;
-    }
-
-    refetchUserData(walletAddress);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletAddress]);
-
-  // 펀딩/생성 성공 후 이벤트가 발생하면 재조회
-  useEffect(() => {
-    const handler = () => {
-      if (!walletAddress) return;
-      refetchUserData(walletAddress);
-    };
-
-    window.addEventListener(USER_DATA_CHANGED_EVENT, handler as any);
-
-    // 다른 탭에서 localStorage를 통해 신호를 주는 경우도 커버
-    const onStorage = (ev: StorageEvent) => {
-      if (ev.key === USER_DATA_CHANGED_EVENT) handler();
-    };
-    window.addEventListener('storage', onStorage);
-
-    return () => {
-      window.removeEventListener(USER_DATA_CHANGED_EVENT, handler as any);
-      window.removeEventListener('storage', onStorage);
-    };
-  }, [walletAddress]);
 
   // Helper: 주소 포맷 (예: 0x742d3.......Eb)
   const formatAddress = (addr: string) => {
@@ -416,15 +326,14 @@ export default function UserPage() {
           </div>
           <div className="bg-white rounded-lg p-6">
             <div className="text-sm text-gray-500 mb-1">Total Raised</div>
-            {/* [17] Total Raised: 내가 만든 프로젝트들의 raisedAmount 합계를 계산 */}
             <div className="text-3xl font-semibold text-gray-900">
-              {stats ? `$${stats.totalRaised.toLocaleString()}` : '—'}
+              {typeof stats?.totalFundedAmount === 'number' ? `$${stats.totalFundedAmount.toLocaleString()}` : '—'}
             </div>
           </div>
           <div className="bg-white rounded-lg p-6">
             <div className="text-sm text-gray-500 mb-1">Total Contributed</div>
             <div className="text-3xl font-semibold text-gray-900">
-              {stats ? `${stats.totalContributed} SUI` : '—'}
+              {'—'}
             </div>
           </div>
         </div>
@@ -601,35 +510,27 @@ export default function UserPage() {
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
-                            {/* [29] 타입 배지: funded/created에 따라 라벨/색상 분기 */}
                             <span
-                              className={`px-2 py-1 text-xs font-medium rounded ${
-                                tx.type === 'funded'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-blue-100 text-blue-700'
-                              }`}
+                              className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700"
                             >
-                              {tx.type === 'funded' ? 'Funded' : 'Created'}
+                              Funding
                             </span>
-                            <span className="font-medium text-gray-900">{tx.projectTitle}</span>
+                            <span className="font-medium text-gray-900">{tx.projectId ?? '—'}</span>
                           </div>
                           <div className="flex items-center gap-3 text-sm text-gray-500">
-                            <span>{tx.date}</span>
+                            <span>{new Date(tx.createdAt).toLocaleString()}</span>
                             <span>•</span>
-                            {/* [30] txHash 표기(목업): 실제로는 Sui tx digest/해시 형태로 교체 필요 */}
-                            <span className="font-mono text-xs">{tx.txHash}</span>
-                            {/* [31] Explorer 링크(미구현): txHash를 Sui Explorer 트랜잭션 링크로 연결 */}
+                            <span className="font-mono text-xs">{tx.txHash ?? '—'}</span>
                             <button className="hover:text-gray-700">
                               <ExternalLink className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
-                        {/* [32] 금액 표시: amount가 0보다 큰 경우만 우측에 표기 */}
-                        {tx.amount > 0 && (
-                          <div className="text-right">
-                            <div className="font-semibold text-gray-900">${tx.amount.toLocaleString()}</div>
+                        <div className="text-right">
+                          <div className="font-semibold text-gray-900">
+                            {tx.amount.toLocaleString()} {tx.token}
                           </div>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>

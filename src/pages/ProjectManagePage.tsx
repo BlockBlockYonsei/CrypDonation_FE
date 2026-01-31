@@ -1,73 +1,76 @@
-// src/pages/ProjectDetailPage.tsx
-// Project Detail 페이지
-// - 특정 프로젝트(id)를 조회해 커버/소개/진행률 및 탭(Story/Updates/Supporters/Risks)을 표시
-// - 간단 펀딩(FundingPanel) 오픈 또는 Full Funding(/funding/:id)으로 이동하는 진입점 제공
-// - 현재는 mockProjects 기반 UI이며, 실제 온체인 상태는 인덱서/백엔드 데이터로 교체 예정
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Users, CheckCircle } from "lucide-react";
 
-// Imports
-// - React hook: 탭/모달 상태 관리
-// - Router: URL 파라미터(id) 및 페이지 이동
-// - Icons: UI 시각 요소
-// - Components: Navigation, FundingPanel
-// - Mock data: 추후 API/인덱서/온체인 조회로 교체 예정
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle, Users } from 'lucide-react';
-import Navigation from '../components/Navigation';
-import FundingPanel from '../components/FundingPanel';
-import { mockProjects } from '../data/mockData.ts';
+import Navigation from "../components/Navigation";
 
-// Types
-// - 탭 헤더 버튼과 1:1 매핑
-type TabType = 'story' | 'updates' | 'supporters' | 'risks';
+import { useQuery } from "@tanstack/react-query";
+import { mockProjects } from "../data/mockData";
+import { ManagingApi } from "../api/modules/managing.api";
 
-export default function ProjectDetailPage() {
+type TabId = "story" | "updates" | "supporters" | "risks";
+
+export default function ProjectManagePage() {
   const { id } = useParams<{ id: string }>();
+  const [activeTab, setActiveTab] = useState<TabId>("story");
+
+  const navigate = useNavigate();
+  const walletAddress = localStorage.getItem("connectedWalletAddress") ?? "";
+
+  async function onDelete(projectId: string) {
+    if (!walletAddress) {
+      alert("Wallet not connected");
+      return;
+    }
+
+    const ok = window.confirm("Delete this project? This cannot be undone.");
+    if (!ok) return;
+
+    try {
+      await ManagingApi.remove(projectId, { walletAddress });
+      alert("Deleted");
+      navigate("/");
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message ?? "Delete failed");
+    }
+  }
 
   // 1) mock 기반 placeholder (UI 개발용)
   const mockProject = mockProjects.find((p) => p.id === id) || null;
 
   // 2) API overlay (mock → real data로 자동 전환)
   const { data: project, isLoading, isError } = useQuery({
-    queryKey: ['project', id],
+    queryKey: ["project-manage", id],
     queryFn: async () => {
       const res = await fetch(`/api/projects/${id}`);
-      if (!res.ok) throw new Error('Failed to fetch project');
+      if (!res.ok) throw new Error("Failed to fetch project");
       const data = await res.json();
-
-      // Normalize BE(DB) response -> FE legacy shape
-      const walletAddress =
-        data?.creator?.walletAddress ??
-        data?.creatorWalletAddress ??
-        data?.creator_wallet_address ??
-        '0x0';
 
       return {
         ...data,
-        coverUrl: typeof data?.coverUrl === 'string' ? data.coverUrl : '',
-        thumbnailUrl: typeof data?.thumbnailUrl === 'string' ? data.thumbnailUrl : '',
-        story: typeof data?.story === 'string' ? data.story : '',
+        coverUrl: typeof data?.coverUrl === "string" ? data.coverUrl : "",
+        thumbnailUrl: typeof data?.thumbnailUrl === "string" ? data.thumbnailUrl : "",
+        story: typeof data?.story === "string" ? data.story : "",
         updates: Array.isArray(data?.updates) ? data.updates : [],
         creator: {
-          walletAddress,
+          walletAddress:
+            typeof data?.creator?.walletAddress === "string"
+              ? data.creator.walletAddress
+              : typeof data?.creatorWalletAddress === "string"
+                ? data.creatorWalletAddress
+                : "",
           verified: !!data?.creator?.verified,
-          pastProjects: typeof data?.creator?.pastProjects === 'number' ? data.creator.pastProjects : 0,
+          pastProjects:
+            typeof data?.creator?.pastProjects === "number"
+              ? data.creator.pastProjects
+              : 0,
         },
       };
     },
     enabled: !!id,
     placeholderData: mockProject ?? undefined,
   });
-
-
-  // State 
-  // - activateTab: 현재 선택된 택 (기본 story)
-  // - isFundingPanelOpen: 간단 펀딩 모달 (Funding Panel) 오픈 여부
-  const [activeTab, setActiveTab] = 
-  useState<TabType>('story');
-
-  const [isFundingPanelOpen, setIsFundingPanelOpen] = useState(false);
 
   // Guard
   if (isLoading && !project) {
@@ -94,14 +97,18 @@ export default function ProjectDetailPage() {
       </div>
     );
   }
-  // Derived
-  // - 진행률(%) = (모금액 / 목표금액) * 100, 최대 100%로 클램프
-  // - UI(progress bar width) 용도
-  const fundingPercentage = Math.min((project.raisedAmount / project.goalAmount) * 100, 100);
 
-  // Creator address display helpers (safe fallback)
-  const creatorAddr = project?.creator?.walletAddress ?? '0x0';
-  const shortCreatorAddr = creatorAddr.length > 10 ? `${creatorAddr.slice(0, 6)}...${creatorAddr.slice(-4)}` : creatorAddr;
+  // Derived
+  const fundingPercentage = Math.min(
+    (Number(project.raisedAmount || 0) / Math.max(Number(project.goalAmount || 0), 1)) * 100,
+    100
+  );
+
+  const creatorAddr = project?.creator?.walletAddress ?? "0x0";
+  const shortCreatorAddr =
+    creatorAddr.length > 10
+      ? `${creatorAddr.slice(0, 6)}...${creatorAddr.slice(-4)}`
+      : creatorAddr;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -124,8 +131,8 @@ export default function ProjectDetailPage() {
           {/* Cover Image */}
           <div className="aspect-[21/9] bg-gray-100">
             <img
-              src={project.coverUrl || '/placeholder-cover.png'}
-              alt={project.title}
+              src={project.coverUrl || "/placeholder-cover.png"}
+              alt={project.title || "Project"}
               className="w-full h-full object-cover"
               loading="lazy"
             />
@@ -138,7 +145,9 @@ export default function ProjectDetailPage() {
               <div className="col-span-2">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <div className="text-sm text-gray-500 mb-2">{project.category}</div>
+                    <div className="text-sm text-gray-500 mb-2">
+                      {project.category}
+                    </div>
                     <h1 className="text-3xl font-semibold text-gray-900 mb-3">
                       {project.title}
                     </h1>
@@ -160,10 +169,10 @@ export default function ProjectDetailPage() {
                 <div className="grid grid-cols-3 gap-6">
                   <div>
                     <div className="text-2xl font-semibold text-gray-900 mb-1">
-                      ${project.raisedAmount.toLocaleString()}
+                      ${Number(project.raisedAmount || 0).toLocaleString()}
                     </div>
                     <div className="text-sm text-gray-500">
-                      raised of ${project.goalAmount.toLocaleString()} goal
+                      raised of ${Number(project.goalAmount || 0).toLocaleString()} goal
                     </div>
                   </div>
                   <div>
@@ -181,47 +190,50 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
 
-              {/* Right: creator info + CTAs */}
+              {/* Right: creator info + Manage CTAs */}
               <div className="border-l border-gray-200 pl-8">
                 <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-900 mb-3">Created by</h3>
+                  <h3 className="text-sm font-medium text-gray-900 mb-3">
+                    Created by
+                  </h3>
                   <div className="flex items-start gap-3">
                     <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
                       <Users className="w-6 h-6 text-gray-400" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        {/* Wallet address (short) */}
                         <span className="text-sm font-medium text-gray-900 truncate">
                           {shortCreatorAddr}
                         </span>
-                        {/* Verified badge */}
-                        {project.creator.verified && (
+                        {project?.creator?.verified && (
                           <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
                         )}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {project.creator.pastProjects} past projects
+                        {project?.creator?.pastProjects ?? 0} past projects
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* CTA: quick fund (modal) */}
+                {/* Manage: Withdraw */}
                 <button
-                  onClick={() => setIsFundingPanelOpen(true)}
+                  onClick={() => {
+                    // TODO: withdraw flow 연결
+                    console.log("withdraw funds", project.id);
+                  }}
                   className="w-full h-12 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium mb-3"
                 >
-                  Fund This Project
+                  Withdraw Funds
                 </button>
 
-                {/* CTA: full funding page */}
-                <Link
-                  to={`/funding/${project.id}`}
-                  className="block w-full h-12 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-center leading-[3rem] text-gray-900"
+                {/* Manage: Delete */}
+                <button
+                  onClick={() => onDelete(String(project.id))}
+                  className="w-full h-12 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
                 >
-                  View Funding Details
-                </Link>
+                  Delete Project
+                </button>
               </div>
             </div>
           </div>
@@ -232,20 +244,19 @@ export default function ProjectDetailPage() {
           {/* Tab Header */}
           <div className="border-b border-gray-200">
             <div className="flex">
-              {/* Tab Buttons */}
               {([
-                { id: 'story', label: 'Story' },
-                { id: 'updates', label: 'Updates' },
-                { id: 'supporters', label: 'Supporters' },
-                { id: 'risks', label: 'Risks & Disclosure' },
+                { id: "story", label: "Story" },
+                { id: "updates", label: "Updates" },
+                { id: "supporters", label: "Supporters" },
+                { id: "risks", label: "Risks & Disclosure" },
               ] as const).map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-8 h-14 font-medium transition-colors relative ${
                     activeTab === tab.id
-                      ? 'text-gray-900'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? "text-gray-900"
+                      : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   {tab.label}
@@ -259,27 +270,39 @@ export default function ProjectDetailPage() {
 
           {/* Tab Content */}
           <div className="p-8">
-            {/* Story */}
-            {activeTab === 'story' && (
+            {activeTab === "story" && (
               <div className="max-w-3xl">
                 <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {project.story || ''}
+                  {project.story || ""}
                 </p>
               </div>
             )}
 
-            {/* Updates */}
-            {activeTab === 'updates' && (
+            {activeTab === "updates" && (
               <div className="max-w-3xl">
                 {(project.updates?.length ?? 0) > 0 ? (
                   <div className="space-y-6">
-                    {project.updates?.map((update: { id: string; date: string; title: string; content: string }) => (
-                      <div key={update.id} className="border-b border-gray-200 pb-6 last:border-0">
-                        <div className="text-sm text-gray-500 mb-2">{update.date}</div>
-                        <h3 className="font-semibold text-gray-900 mb-2">{update.title}</h3>
-                        <p className="text-gray-700">{update.content}</p>
-                      </div>
-                    ))}
+                    {project.updates?.map(
+                      (update: {
+                        id: string;
+                        date: string;
+                        title: string;
+                        content: string;
+                      }) => (
+                        <div
+                          key={update.id}
+                          className="border-b border-gray-200 pb-6 last:border-0"
+                        >
+                          <div className="text-sm text-gray-500 mb-2">
+                            {update.date}
+                          </div>
+                          <h3 className="font-semibold text-gray-900 mb-2">
+                            {update.title}
+                          </h3>
+                          <p className="text-gray-700">{update.content}</p>
+                        </div>
+                      )
+                    )}
                   </div>
                 ) : (
                   <p className="text-gray-500">No updates yet.</p>
@@ -287,8 +310,7 @@ export default function ProjectDetailPage() {
               </div>
             )}
 
-            {/* Supporters */}
-            {activeTab === 'supporters' && (
+            {activeTab === "supporters" && (
               <div className="max-w-3xl">
                 <div className="flex items-center gap-2 text-gray-700 mb-6">
                   <Users className="w-5 h-5" />
@@ -301,14 +323,16 @@ export default function ProjectDetailPage() {
               </div>
             )}
 
-            {/* Risks & Disclosure */}
-            {activeTab === 'risks' && (
+            {activeTab === "risks" && (
               <div className="max-w-3xl">
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-6">
-                  <h3 className="font-semibold text-amber-900 mb-2">Investment Risk Warning</h3>
+                  <h3 className="font-semibold text-amber-900 mb-2">
+                    Investment Risk Warning
+                  </h3>
                   <p className="text-sm text-amber-800">
-                    Cryptocurrency-based crowdfunding carries inherent risks. Project outcomes are
-                    not guaranteed. Only contribute what you can afford to lose.
+                    Cryptocurrency-based crowdfunding carries inherent risks.
+                    Project outcomes are not guaranteed. Only contribute what you
+                    can afford to lose.
                   </p>
                 </div>
                 <div className="prose prose-sm max-w-none text-gray-700">
@@ -325,13 +349,6 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </main>
-
-      {/* FundingPanel Modal */}
-      <FundingPanel
-        project={project}
-        isOpen={isFundingPanelOpen}
-        onClose={() => setIsFundingPanelOpen(false)}
-      />
     </div>
   );
 }

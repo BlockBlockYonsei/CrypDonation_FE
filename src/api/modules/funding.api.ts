@@ -19,13 +19,15 @@ function toQS(query?: Record<string, unknown>) {
 }
 
 export const FundingApi = {
+  // Backend funding route: GET /api/funding/:projectId?page=&limit=
   getByProject: (projectId: string, query?: FundingQuery) =>
-    api<FundingSummaryResponse>(`/api/projects/${projectId}/funding${toQS(query)}`, {
+    api<FundingSummaryResponse>(`/api/funding/${projectId}${toQS(query)}`, {
       method: "GET",
     }),
 
+  // Backend funding route: POST /api/funding/:projectId
   create: (projectId: string, body: CreateFundingBody) =>
-    api<FundingItem>(`/api/projects/${projectId}/funding`, {
+    api<FundingItem>(`/api/funding/${projectId}`, {
       method: "POST",
       body,
     }),

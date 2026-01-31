@@ -57,7 +57,7 @@ export default function Navigation({
       <div className="mx-auto max-w-[1440px] px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="text-xl font-semibold text-gray-900">
+          <Link to="/explore" className="text-xl font-semibold text-gray-900">
             CryptoFund
           </Link>
 
