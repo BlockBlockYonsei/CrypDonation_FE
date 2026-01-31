@@ -1,5 +1,5 @@
 {
-  "name": "Crypto Crowdfunding Platform",
+  "name": "cryp-donation-fe",
   "version": "0.1.0",
   "private": true,
   "dependencies": {

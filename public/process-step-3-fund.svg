@@ -1,0 +1,63 @@
+<svg viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="600" height="800" fill="#0f0f1e"/>
+  
+  <!-- Modal Header -->
+  <rect x="20" y="20" width="560" height="60" fill="#1a1a2e" stroke="#4a5568" stroke-width="1" rx="8"/>
+  <text x="300" y="55" font-size="22" fill="white" text-anchor="middle" font-weight="bold">펀딩 확인</text>
+  <circle cx="560" cy="50" r="12" fill="none" stroke="#a0aec0" stroke-width="2"/>
+  <text x="560" y="56" font-size="20" fill="#a0aec0" text-anchor="middle">✕</text>
+  
+  <!-- Project Title -->
+  <text x="40" y="120" font-size="16" fill="#e0e0e0" font-weight="bold">Blockchain-Based Gaming Platform</text>
+  <text x="40" y="140" font-size="12" fill="#a0aec0">Play-to-earn gaming ecosystem with cross-game assets</text>
+  
+  <!-- Input Section -->
+  <text x="40" y="175" font-size="13" fill="#a0aec0" font-weight="bold">펀딩 금액 (USD)</text>
+  <rect x="40" y="190" width="520" height="50" fill="#1a1a2e" stroke="#4a5568" stroke-width="1" rx="6"/>
+  <text x="60" y="225" font-size="24" fill="#e0e0e0" font-weight="bold">$</text>
+  <text x="85" y="225" font-size="24" fill="#e0e0e0" font-weight="bold">50</text>
+  
+  <!-- Reward Section -->
+  <text x="40" y="280" font-size="13" fill="#a0aec0" font-weight="bold">리워드 선택 (필수)</text>
+  <rect x="40" y="295" width="520" height="70" fill="#1a1a2e" stroke="#10b981" stroke-width="2" rx="6"/>
+  <circle cx="60" cy="330" r="8" fill="#10b981"/>
+  <text x="85" y="315" font-size="12" fill="#10b981" font-weight="bold">$50</text>
+  <text x="85" y="335" font-size="11" fill="#a0aec0">Founder Token</text>
+  <text x="85" y="350" font-size="10" fill="#a0aec0">Exclusive founder NFT token</text>
+  <text x="520" y="330" font-size="11" fill="#10b981" text-anchor="end" font-weight="bold">600 available</text>
+  
+  <!-- Transaction Summary Box -->
+  <rect x="40" y="390" width="520" height="130" fill="#1a1a2e" stroke="#4a5568" stroke-width="1" rx="8"/>
+  <text x="60" y="415" font-size="14" fill="#e0e0e0" font-weight="bold">거래 요약</text>
+  <line x1="40" y1="430" x2="560" y2="430" stroke="#4a5568" stroke-width="1"/>
+  
+  <!-- Summary Items -->
+  <text x="60" y="455" font-size="12" fill="#a0aec0">펀딩 금액</text>
+  <text x="500" y="455" font-size="12" fill="#e0e0e0" text-anchor="end" font-weight="bold">$50</text>
+  
+  <text x="60" y="480" font-size="12" fill="#a0aec0">예상 가스비</text>
+  <text x="500" y="480" font-size="12" fill="#e0e0e0" text-anchor="end" font-weight="bold">$0.003 ETH</text>
+  
+  <line x1="40" y1="495" x2="560" y2="495" stroke="#4a5568" stroke-width="1"/>
+  <text x="60" y="520" font-size="13" fill="#e0e0e0" font-weight="bold">합계</text>
+  <text x="500" y="520" font-size="18" fill="#10b981" text-anchor="end" font-weight="bold">$50.00</text>
+  
+  <!-- Important Notice -->
+  <rect x="40" y="545" width="520" height="80" fill="#f59e0b" opacity="0.15" stroke="#f59e0b" stroke-width="1" rx="6"/>
+  <text x="60" y="570" font-size="12" fill="#fcd34d" font-weight="bold">⚠️ 중요 안내</text>
+  <text x="60" y="590" font-size="11" fill="#fcd34d">암호화폐 거래는 되돌릴 수 없습니다.</text>
+  <text x="60" y="607" font-size="11" fill="#fcd34d">계약 내용을 꼼꼼히 확인해주세요.</text>
+  
+  <!-- Confirm Button -->
+  <rect x="40" y="645" width="520" height="50" fill="#10b981" rx="8"/>
+  <text x="300" y="677" font-size="16" fill="white" text-anchor="middle" font-weight="bold">펀딩 확인</text>
+  
+  <!-- View Advanced Details Link -->
+  <text x="300" y="715" font-size="12" fill="#00d4ff" text-anchor="middle" font-weight="600">상세한 내용 보기</text>
+  
+  <!-- Success Indicator -->
+  <circle cx="300" cy="760" r="20" fill="#10b981" opacity="0.2"/>
+  <circle cx="300" cy="760" r="20" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="5,5"/>
+  <text x="300" y="767" font-size="24" fill="#10b981" text-anchor="middle" font-weight="bold">✓</text>
+</svg>
