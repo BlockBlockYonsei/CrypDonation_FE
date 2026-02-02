@@ -75,7 +75,9 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   // ✅ Dev: 지갑 연결이 되어있으면 자동으로 x-wallet-address 주입
   // - options.headers로 명시적으로 넘겼다면 그 값을 우선함(덮어쓰지 않음)
   // - Bearer 토큰을 쓰는 경우(추후)에도 options.headers.Authorization이 있으면 그대로 사용
-  if (!headers["x-wallet-address"]) {
+  const isDev = Boolean((import.meta as any).env?.DEV);
+
+  if (isDev && !headers["x-wallet-address"]) {
     const devWallet = getDevWalletAddressFromStorage();
     if (devWallet) headers["x-wallet-address"] = devWallet;
   }
@@ -98,7 +100,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     headers,
     body,
     signal: options.signal,
-    credentials: "include", // 필요 없으면 지워도 됨
+    credentials: "omit",
   });
 
   // 204 No Content

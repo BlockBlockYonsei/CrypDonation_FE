@@ -13,7 +13,8 @@ import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { Wallet, Copy, ExternalLink } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUserProjects, useUserStats, useUserTransactions, userKeys } from '../queries/users.queries';
-import { api } from '../api/https';
+import { UsersApi } from '../api/modules/users.api';
+
 // [4] 공통 네비게이션
 import Navigation from '../components/Navigation';
 // [5] 목업 데이터
@@ -79,6 +80,31 @@ export default function UserPage() {
   const explorerAddressUrl = useMemo(() => {
     if (!walletAddress) return '';
     return `https://suiscan.xyz/testnet/account/${walletAddress}/portfolio`;
+  }, [walletAddress]);
+
+  // [PROFILE LOAD] 지갑 주소 기준으로 서버에 저장된 프로필(displayName/description) 불러오기
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfile() {
+      if (!walletAddress) return;
+
+      try {
+        const res = await UsersApi.profile(walletAddress);
+        if (cancelled) return;
+
+        if (res?.profile?.displayName) setDisplayName(res.profile.displayName);
+        if (typeof res?.profile?.description === 'string') setProfileDescription(res.profile.description);
+      } catch {
+        // 실패 시 기본값 유지
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
   }, [walletAddress]);
 
   // [8-3] 잔액 조회
@@ -185,12 +211,9 @@ export default function UserPage() {
   const saveProfile = async () => {
     if (!walletAddress) return;
     try {
-      await api(`/api/users/${walletAddress}/profile`, {
-        method: 'PATCH',
-        body: {
-          displayName,
-          description: profileDescription,
-        },
+      await UsersApi.updateProfile(walletAddress, {
+        displayName,
+        description: profileDescription,
       });
 
       // 프로필이 백엔드에 저장된다면 stats 등을 다시 불러올 수 있게 invalidate
