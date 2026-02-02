@@ -13,11 +13,13 @@
 import { useRef, useState } from 'react';
 import type React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from '@mysten/dapp-kit';
 import { useMutation } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Check, Upload, X } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import { categories } from '../data/mockData.ts';
+import { Transaction } from '@mysten/sui/transactions';
+import { bcs } from '@mysten/sui/bcs';
 
 // Types
 // - 위저드 단계(1~4)
@@ -42,6 +44,11 @@ interface ProjectFormData {
   }>;
 }
 
+
+
+  
+
+
 export default function StartProjectWizard() {
   // State
   // - currentStep: 현재 단계(1~4)
@@ -57,6 +64,75 @@ export default function StartProjectWizard() {
     duration: '30',
     rewards: [],
   });
+
+
+  ////////////////////////////////onpublish 함수 필요 부분 구현///////////////////////////////////////////////
+
+  const publish2onchain = async (formData : any) => {
+
+
+    // publish project 버튼을 누르면 해당 창에서 기입한 프로젝트의 정보가 온체인에 올라감
+
+    // publish 버튼 눌렀을때, transaction 전송 위함.
+    const { mutate: signAndExecute} = useSignAndExecuteTransaction();
+
+    // TS SDK 작성시 필요한 정보. _  network variable 파일 추가
+    //const packageId = useNetworkVariable("packageId");
+    //const dashboardId = useNetworkVariable("dashboardId");
+    const packageId = "0xbefd89098d0213e62043a04e3fbb5070bb1fccc41533f37c4b11fd86907843da";
+    const dashboardId = "0xfa273626aaca8b0039a1ccc10384d0ee8c2689714b1fc9785e027a17de1c942d";
+
+    const tx = new Transaction();
+
+    const enc = new TextEncoder();
+    const thumbBytes = Array.from(enc.encode(formData.thumbailUrl));
+    const coverBytes = Array.from(enc.encode(formData.coverUrl));
+
+    const Reward = bcs.struct('Reward', {
+      id : bcs.string(),
+      amount: bcs.u64(),
+      title: bcs.string(),  // Move std::string::String
+      description: bcs.string()
+    });
+
+    // vector<Reward>를 BCS로 직렬화해서 bytes로 만들기
+    const itemsBytes = bcs.vector(Reward).serialize(formData.rewards).toBytes();
+
+    // create_proejct 함수사용해서 새 프로젝트 객체 생성.
+    const [project_id] = tx.moveCall({
+      target: `${packageId}::project_2::create_project`,
+      arguments: [
+        tx.pure.string(formData.title), // title : string,
+        tx.pure.string(formData.oneLiner)     ,//  description : string
+        tx.pure.string(formData.category),
+        tx.pure.vector('u8', thumbBytes),
+        tx.pure.vector('u8', coverBytes),
+        tx.pure.u64(formData.goalAmount),
+        tx.pure.u64(formData.duration),
+        tx.pure(itemsBytes)
+      ]
+    })
+
+    // register_project 함수사용해서 생성한 프로젝트 등록.
+    tx.moveCall({
+      target : `${packageId}::dashboard_2::register_project`,
+      arguments: [
+        tx.object(dashboardId),
+        project_id
+      ]
+    })
+
+    const result = await signAndExecute({
+      transaction: tx
+    });
+
+
+  }
+
+
+
+
+  ///////////////////////////////////////////////////////////////////////////////
 
   const navigate = useNavigate();
   const account = useCurrentAccount();
@@ -323,9 +399,12 @@ export default function StartProjectWizard() {
       // 백엔드 응답 형태가 달라도 대응: id / projectId / project.id
       const projectId = data?.id || data?.projectId || data?.project?.id;
 
+      debugger;
+
       alert('Project created successfully.');
 
       if (projectId) {
+        publish2onchain(formData);
         navigate(`/projects/${projectId}`);
       } else {
         navigate('/explore');
