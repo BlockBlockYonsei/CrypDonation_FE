@@ -1,4 +1,4 @@
-// src/api/modules/funding.api.ts
+// 후원 내역확인
 import { api } from "../https";
 import type { FundingSummaryResponse, FundingItem, CreateFundingBody } from "../types";
 
@@ -19,13 +19,11 @@ function toQS(query?: Record<string, unknown>) {
 }
 
 export const FundingApi = {
-  // Backend funding route: GET /api/funding/:projectId?page=&limit=
   getByProject: (projectId: string, query?: FundingQuery) =>
     api<FundingSummaryResponse>(`/api/funding/${projectId}${toQS(query)}`, {
       method: "GET",
     }),
 
-  // Backend funding route: POST /api/funding/:projectId
   create: (projectId: string, body: CreateFundingBody) =>
     api<FundingItem>(`/api/funding/${projectId}`, {
       method: "POST",

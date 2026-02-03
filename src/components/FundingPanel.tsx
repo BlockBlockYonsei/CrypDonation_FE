@@ -70,7 +70,7 @@ export default function FundingPanel({ project, isOpen, onClose }: FundingPanelP
               Select Reward (Optional)
             </label>
             <div className="space-y-2">
-              {project.rewards.map((reward) => (
+              {(Array.isArray(project.rewards) ? project.rewards : []).map((reward) => (
                 <button
                   key={reward.id}
                   onClick={() => setSelectedReward(reward.id)}
