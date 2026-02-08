@@ -20,6 +20,7 @@ import Navigation from '../components/Navigation';
 import { categories } from '../data/mockData.ts';
 import { Transaction } from '@mysten/sui/transactions';
 import { bcs } from '@mysten/sui/bcs';
+import { useNetworkVariable } from '../networkConfig.ts';
 
 // Types
 // - 위저드 단계(1~4)
@@ -77,10 +78,8 @@ export default function StartProjectWizard() {
     const { mutate: signAndExecute} = useSignAndExecuteTransaction();
 
     // TS SDK 작성시 필요한 정보. _  network variable 파일 추가
-    //const packageId = useNetworkVariable("packageId");
-    //const dashboardId = useNetworkVariable("dashboardId");
-    const packageId = "0xbefd89098d0213e62043a04e3fbb5070bb1fccc41533f37c4b11fd86907843da";
-    const dashboardId = "0xfa273626aaca8b0039a1ccc10384d0ee8c2689714b1fc9785e027a17de1c942d";
+    const PackageID = useNetworkVariable("PackageID");
+    const DashboardID = useNetworkVariable("DashboardID");
 
     const tx = new Transaction();
 
@@ -100,7 +99,7 @@ export default function StartProjectWizard() {
 
     // create_proejct 함수사용해서 새 프로젝트 객체 생성.
     const [project_id] = tx.moveCall({
-      target: `${packageId}::project_2::create_project`,
+      target: `${PackageID}::project_2::create_project`,
       arguments: [
         tx.pure.string(formData.title), // title : string,
         tx.pure.string(formData.oneLiner)     ,//  description : string
@@ -115,9 +114,9 @@ export default function StartProjectWizard() {
 
     // register_project 함수사용해서 생성한 프로젝트 등록.
     tx.moveCall({
-      target : `${packageId}::dashboard_2::register_project`,
+      target : `${PackageID}::dashboard_2::register_project`,
       arguments: [
-        tx.object(dashboardId),
+        tx.object(DashboardID),
         project_id
       ]
     })
