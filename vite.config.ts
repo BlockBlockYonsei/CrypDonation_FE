@@ -66,7 +66,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       target: 'esnext',
-      outDir: 'build',
+      outDir: 'dist',
     },
     server: {
       // 로컬 개발에서만 /api 를 백엔드로 프록시

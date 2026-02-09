@@ -68,7 +68,9 @@ export default function StartProjectWizard() {
   // API base
   // - Dev: keep empty and rely on Vite proxy (/api -> http://localhost:4000)
   // - Prod: set VITE_API_BASE (e.g. https://api.example.com)
-  const API_BASE = (import.meta as any).env?.VITE_API_BASE ? String((import.meta as any).env.VITE_API_BASE) : '';
+  const API_BASE = (import.meta as any).env?.VITE_API_BASE
+    ? String((import.meta as any).env.VITE_API_BASE)
+    : ((import.meta as any).env?.VITE_API_PROXY_TARGET ? String((import.meta as any).env.VITE_API_PROXY_TARGET) : '');
 
   const [txError, setTxError] = useState<string>('');
   const [txDigest, setTxDigest] = useState<string>('');
@@ -201,9 +203,7 @@ export default function StartProjectWizard() {
 
     const res = await fetch(`${API_BASE}/api/uploads`, {
       method: 'POST',
-      headers: {
-        'x-wallet-address': walletAddress ?? '',
-      },
+      headers: walletAddress ? { 'x-wallet-address': walletAddress } : undefined,
       body: fd,
     });
 
@@ -615,17 +615,17 @@ export default function StartProjectWizard() {
                       )}
 
                       <div className="mt-4">
-                        <input
-                          type="text"
-                          value={formData.coverUrl}
-                          onChange={(e) => {
-                            setCoverFile(null);
-                            updateFormData({ coverUrl: e.target.value });
-                          }}
-                          placeholder="Or paste image URL"
-                          className="w-full max-w-md mx-auto h-10 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                          <input
+                            type="text"
+                            value={formData.coverUrl}
+                            onChange={(e) => {
+                              setCoverFile(null);
+                              updateFormData({ coverUrl: e.target.value });
+                            }}
+                            placeholder="Or paste image URL"
+                            className="w-full max-w-md mx-auto h-10 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+                            onClick={(e) => e.stopPropagation()}
+                          />
                       </div>
                     </div>
                   </div>
