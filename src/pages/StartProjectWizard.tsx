@@ -13,11 +13,13 @@
 import { useRef, useState } from 'react';
 import type React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useCurrentAccount } from '@mysten/dapp-kit';
-import { useMutation } from '@tanstack/react-query';
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import { ArrowLeft, ArrowRight, Check, Upload, X } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import { categories } from '../data/mockData.ts';
+import { buildCreateAndRegisterProjectTx } from '../chain/tx';
+import { safeNumber, suiToMist } from '../chain/units';
+import { humanizeTxError } from '../chain/errors';
 
 // Types
 // - 위저드 단계(1~4)
@@ -61,6 +63,15 @@ export default function StartProjectWizard() {
   const navigate = useNavigate();
   const account = useCurrentAccount();
   const walletAddress = account?.address;
+  const { mutateAsync: signAndExecute, isPending: isSigning } = useSignAndExecuteTransaction();
+
+  // API base
+  // - Dev: keep empty and rely on Vite proxy (/api -> http://localhost:4000)
+  // - Prod: set VITE_API_BASE (e.g. https://api.example.com)
+  const API_BASE = (import.meta as any).env?.VITE_API_BASE ? String((import.meta as any).env.VITE_API_BASE) : '';
+
+  const [txError, setTxError] = useState<string>('');
+  const [txDigest, setTxDigest] = useState<string>('');
 
   // Local image files (for drag & drop / file picker)
   // - NOTE: 아직 서버 업로드는 미구현. 현재는 Object URL로 미리보기/폼값 세팅만 함.
@@ -188,7 +199,7 @@ export default function StartProjectWizard() {
     const fd = new FormData();
     fd.append('file', file);
 
-    const res = await fetch('/api/uploads', {
+    const res = await fetch(`${API_BASE}/api/uploads`, {
       method: 'POST',
       headers: {
         'x-wallet-address': walletAddress ?? '',
@@ -214,28 +225,6 @@ export default function StartProjectWizard() {
   const isBlobUrl = (url: string) => url.startsWith('blob:');
   const isHttpUrl = (url: string) => /^https?:\/\//i.test(url);
 
-  // Build payload for backend (create project)
-  const buildCreatePayload = (finalImages?: { thumbnailUrl?: string; coverUrl?: string }) => {
-    return {
-      creatorWalletAddress: walletAddress ?? null,
-      title: formData.title.trim(),
-      category: formData.category,
-      oneLiner: formData.oneLiner.trim(),
-      // IMPORTANT: Never persist blob: URLs. Use uploaded URL or a pasted http(s) URL.
-      thumbnailUrl: (finalImages?.thumbnailUrl ?? formData.thumbnailUrl).trim(),
-      coverUrl: (finalImages?.coverUrl ?? formData.coverUrl).trim(),
-      goalAmount: Number(formData.goalAmount),
-      durationDays: Number(formData.duration),
-      rewards: formData.rewards
-        .filter((r) => r.title.trim() || r.description.trim() || r.amount)
-        .map((r) => ({
-          amount: Number(r.amount || 0),
-          title: r.title.trim(),
-          description: r.description.trim(),
-        })),
-    };
-  };
-
   const validateBeforePublish = () => {
     // 최소 필수값(전체)
     if (!formData.title.trim()) return 'Project Title is required.';
@@ -243,34 +232,26 @@ export default function StartProjectWizard() {
     if (!formData.oneLiner.trim()) return 'One-Line Description is required.';
     if (!formData.thumbnailUrl.trim()) return 'Thumbnail Image is required.';
     if (!formData.coverUrl.trim()) return 'Cover Image is required.';
-    if (!formData.goalAmount || Number.isNaN(Number(formData.goalAmount))) return 'Funding Goal is required.';
-    if (!formData.duration || Number.isNaN(Number(formData.duration))) return 'Campaign Duration is required.';
+    if (!formData.goalAmount || Number.isNaN(Number(formData.goalAmount))) return 'Funding Goal (SUI) is required.';
+    if (!formData.duration || Number.isNaN(Number(formData.duration))) return 'Campaign Duration (days) is required.';
     if (!walletAddress) return 'Please connect your wallet before publishing.';
     return null;
   };
 
-  const createProjectMutation = useMutation({
-    mutationFn: async (payload: ReturnType<typeof buildCreatePayload>) => {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-wallet-address': walletAddress ?? '',
-         },
-        body: JSON.stringify(payload),
-      });
+  // Helpers for encoding and chain units
+  const enc = new TextEncoder();
+  const toBytes = (s: string) => enc.encode(s);
 
-      // 서버가 JSON 에러를 내려줘도 안전하게 파싱
-      const data = await res.json().catch(() => null);
+  const daysToMs = (days: number) => {
+    // Move contract uses ms in comparisons
+    const ms = Math.max(0, Math.floor(days)) * 24 * 60 * 60 * 1000;
+    return BigInt(ms);
+  };
 
-      if (!res.ok) {
-        const message = (data && (data.message || data.error)) || `Failed to create project (HTTP ${res.status})`;
-        throw new Error(message);
-      }
-
-      return data;
-    },
-  });
+  const parseSuiToMistBigint = (value: string) => {
+    const n = safeNumber(value);
+    return suiToMist(n);
+  };
 
   const onPublish = async () => {
     const err = validateBeforePublish();
@@ -309,29 +290,76 @@ export default function StartProjectWizard() {
         }
       }
 
-      // 2) Create project using final URLs
-      const payload = buildCreatePayload({
-        thumbnailUrl: finalThumbnailUrl,
-        coverUrl: finalCoverUrl,
-      });
-
-      const data: any = await createProjectMutation.mutateAsync(payload);
-
-      // 3) (Optional) Update local formData to the persisted URLs so previews remain consistent
+      // 2) Create project on-chain (create_project + dashboard register in one tx)
       updateFormData({ thumbnailUrl: finalThumbnailUrl, coverUrl: finalCoverUrl });
 
-      // 백엔드 응답 형태가 달라도 대응: id / projectId / project.id
-      const projectId = data?.id || data?.projectId || data?.project?.id;
+      setTxError('');
+      setTxDigest('');
 
-      alert('Project created successfully.');
+      const goalAmountMist = parseSuiToMistBigint(formData.goalAmount);
+      const durationMs = daysToMs(Number(formData.duration));
 
-      if (projectId) {
-        navigate(`/projects/${projectId}`);
+      const rewards = formData.rewards
+        .filter((r) => r.title.trim() || r.description.trim() || r.amount)
+        .map((r) => ({
+          amount: parseSuiToMistBigint(r.amount || '0'),
+          title: r.title.trim(),
+          description: r.description.trim(),
+        }));
+
+      const tx = buildCreateAndRegisterProjectTx({
+        title: formData.title.trim(),
+        description: formData.oneLiner.trim(),
+        category: formData.category,
+        thumbnailUrlBytes: toBytes(finalThumbnailUrl),
+        coverUrlBytes: toBytes(finalCoverUrl),
+        goalAmount: goalAmountMist,
+        durationMs,
+        rewards,
+      });
+
+      const res = await signAndExecute({ transaction: tx });
+      const digest = (res as any)?.digest || (res as any)?.effects?.transactionDigest || '';
+      setTxDigest(digest);
+
+      // 3) Sync to backend DB (so Explore/Detail can use the existing REST API)
+      //    Backend must expose POST /api/projects/sync { digest }
+      if (digest) {
+        try {
+          const syncRes = await fetch(`${API_BASE}/api/projects/sync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-wallet-address': walletAddress ?? '',
+            },
+            body: JSON.stringify({ digest }),
+          });
+
+          const syncData = await syncRes.json().catch(() => null);
+
+          if (!syncRes.ok) {
+            const msg = (syncData && (syncData.message || syncData.error)) || `Failed to sync project to backend (HTTP ${syncRes.status})`;
+            // Sync 실패해도 온체인은 성공했으니, 사용자에겐 안내하고 Explore로 이동
+            alert(`Project published on-chain, but backend sync failed.\n\n${msg}\n\nTx digest: ${digest}`);
+            navigate('/explore');
+            return;
+          }
+
+          const projectId = syncData?.projectId;
+          alert(`Project published on-chain and synced to backend.\n\nProject ID: ${projectId || '(unknown)'}\nTx digest: ${digest}`);
+        } catch (e: any) {
+          alert(`Project published on-chain, but backend sync request failed.\n\n${e?.message || String(e)}\n\nTx digest: ${digest}`);
+        }
       } else {
-        navigate('/explore');
+        alert('Project published on-chain, but tx digest was not found. Please check wallet history.');
       }
+
+      // Send the user back to Explore.
+      navigate('/explore');
     } catch (e: any) {
-      alert(e?.message || 'Failed to publish project.');
+      const msg = humanizeTxError(e);
+      setTxError(msg);
+      alert(msg);
     }
   };
 
@@ -615,18 +643,18 @@ export default function StartProjectWizard() {
                   <div className="grid grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-900 mb-2">
-                        Funding Goal (USD) *
+                        Funding Goal (SUI) *
                       </label>
                       <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                          $
+                          SUI
                         </span>
                         <input
                           type="number"
                           value={formData.goalAmount}
                           onChange={(e) => updateFormData({ goalAmount: e.target.value })}
                           placeholder="0.00"
-                          className="w-full h-12 pl-8 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+                          className="w-full h-12 pl-12 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
                         />
                       </div>
                     </div>
@@ -679,7 +707,7 @@ export default function StartProjectWizard() {
 
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-sm text-gray-600 mb-1">Amount ($)</label>
+                              <label className="block text-sm text-gray-600 mb-1">Amount (SUI)</label>
                               <input
                                 type="number"
                                 value={reward.amount}
@@ -756,7 +784,7 @@ export default function StartProjectWizard() {
                       <div>
                         <div className="text-sm text-gray-500 mb-1">Funding Goal</div>
                         <div className="font-medium text-gray-900">
-                          ${formData.goalAmount || '0'}
+                          {(formData.goalAmount || '0')} SUI
                         </div>
                       </div>
                       <div>
@@ -779,6 +807,22 @@ export default function StartProjectWizard() {
                       reviewed before going live.
                     </p>
                   </div>
+
+                  {(txError || txDigest) && (
+                    <div className={`mt-4 rounded-lg border p-4 ${txError ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                      {txError ? (
+                        <div className="text-sm text-red-900">
+                          <div className="font-medium mb-1">Transaction Error</div>
+                          <div className="break-words">{txError}</div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-emerald-900">
+                          <div className="font-medium mb-1">Transaction Submitted</div>
+                          <div className="break-words">Digest: {txDigest}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -811,10 +855,10 @@ export default function StartProjectWizard() {
                   {/* Publish */}
                   <button
                     onClick={onPublish}
-                    disabled={createProjectMutation.isPending}
+                    disabled={isSigning}
                     className="px-6 h-11 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {createProjectMutation.isPending ? 'Publishing...' : 'Publish Project'}
+                    {isSigning ? 'Publishing…' : 'Publish Project'}
                   </button>
                   </>
                 )}

@@ -4,7 +4,7 @@ import type { Paginated, Project, CreateProjectBody, UpdateProjectBody, ProjectS
 
 export type ProjectsListQuery = {
   category?: string;
-  status?: ProjectStatus; // "all" 포함
+  status?: ProjectStatus | "all"; // BE는 "all"을 허용
   sort?: "trending" | "new" | "ending-soon";
   page?: number;
   limit?: number;
@@ -42,6 +42,14 @@ export const ProjectsApi = {
 
   create: (body: CreateProjectBody, opts?: { walletAddress?: string; token?: string }) =>
     api<Project>(`/api/projects`, { method: "POST", body, headers: authHeaders(opts) }),
+
+  // On-chain(Wizard) publish 이후 digest를 BE로 보내 DB에 upsert
+  sync: (digest: string, opts?: { walletAddress?: string; token?: string }) =>
+    api<{ projectId: string; digest: string }>(`/api/projects/sync`, {
+      method: "POST",
+      body: { digest },
+      headers: authHeaders(opts),
+    }),
 
   update: (projectId: string, body: UpdateProjectBody, opts?: { walletAddress?: string; token?: string }) =>
     api<Project>(`/api/projects/${projectId}`, { method: "PATCH", body, headers: authHeaders(opts) }),

@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   // 1) dev proxy 타겟(권장): VITE_API_PROXY_TARGET
   // 2) 프론트에서 직접 호출할 API 베이스: VITE_API_BASE_URL
   // 둘 다 없으면 로컬 백엔드(4000)를 기본값으로 사용
-  const rawTarget = env.VITE_API_PROXY_TARGET || env.VITE_API_BASE_URL || "http://localhost:4000";
+  const rawTarget = env.VITE_API_PROXY_TARGET || env.VITE_API_BASE_URL || "http://15.164.214.69";
   const apiTarget = rawTarget.replace(/\/$/, "");
 
   // 배포 환경에서는 보통 프론트가 백엔드를 직접 호출하므로 proxy를 끄고 싶을 수 있습니다.
@@ -77,8 +77,7 @@ export default defineConfig(({ mode }) => {
             "/api": {
               target: apiTarget,
               changeOrigin: true,
-              // AWS ALB/NGINX 뒤에 붙을 때 path가 꼬이지 않게 그대로 유지
-              // 필요하면 rewrite를 추가로 설정 가능
+              secure: false,
             },
           },
     },

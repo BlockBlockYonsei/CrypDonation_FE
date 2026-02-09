@@ -22,12 +22,34 @@ type StatusFilter = 'all' | 'live' | 'successful' | 'ended';
 
 type ProjectWithCreatedAt = Project & { createdAt?: string };
 
-async function fetchProjects(): Promise<any> {
-  const res = await fetch('/api/projects');
+type FetchProjectsParams = {
+  category: string;
+  status: StatusFilter;
+  sort: SortOption;
+  page: number;
+  limit: number;
+};
+
+async function fetchProjects(params: FetchProjectsParams): Promise<any> {
+  const ENV: any = (import.meta as any).env || {};
+  const API_BASE: string = ENV.VITE_API_BASE ? String(ENV.VITE_API_BASE) : '';
+
+  const qs = new URLSearchParams();
+  // BE expects category like "All" or specific category name
+  if (params.category) qs.set('category', params.category);
+  if (params.status) qs.set('status', params.status);
+  if (params.sort) qs.set('sort', params.sort);
+  qs.set('page', String(params.page));
+  qs.set('limit', String(params.limit));
+
+  const url = `${API_BASE}/api/projects?${qs.toString()}`;
+  const res = await fetch(url);
+
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Failed to fetch projects: ${res.status} ${text}`);
   }
+
   return res.json();
 }
 
@@ -54,7 +76,8 @@ function normalizeStatus(value: any): Project['status'] {
 // API_ORIGIN: 백엔드 오리진(정적 업로드 /uploads 접근용)
 // - 우선순위: VITE_API_ORIGIN(권장) -> VITE_API_URL/BASE_URL(프로젝트에 따라 사용) -> ''(프록시 사용)
 const ENV: any = (import.meta as any).env || {};
-const API_ORIGIN: string = ENV.VITE_API_ORIGIN || ENV.VITE_API_URL || ENV.VITE_API_BASE_URL || '';
+// Prefer explicit API origin; fall back to API base if provided
+const API_ORIGIN: string = ENV.VITE_API_ORIGIN || ENV.VITE_API_URL || ENV.VITE_API_BASE_URL || (ENV.VITE_API_BASE ? String(ENV.VITE_API_BASE) : '');
 
 function resolveAssetUrl(raw: any): string {
   const url = String(raw ?? '').trim();
@@ -90,8 +113,15 @@ export default function ExplorePage() {
   // - 백엔드에서 프로젝트 목록을 가져옴
   // - 실패 시(mock 유지) UI가 계속 동작하도록 fallback
   const projectsQuery = useQuery({
-    queryKey: ['projects', 'list'],
-    queryFn: fetchProjects,
+    queryKey: ['projects', 'list', selectedCategory, statusFilter, sortBy, 1, 100],
+    queryFn: () =>
+      fetchProjects({
+        category: selectedCategory,
+        status: statusFilter,
+        sort: sortBy,
+        page: 1,
+        limit: 100,
+      }),
     staleTime: 10_000,
   });
 
