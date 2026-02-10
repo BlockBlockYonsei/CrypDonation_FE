@@ -24,15 +24,14 @@ type RequestOptions = {
 
 function getBaseUrl() {
   // 예: .env에 VITE_API_BASE_URL=http://localhost:4000
-  // 없으면 same-origin 기준(프록시 쓰는 경우)으로 동작
+  // 없으면 same-origin 기준(예: Vercel rewrites)으로 동작
   return (import.meta as any).env?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 }
 
 function buildUrl(path: string) {
   const base = getBaseUrl();
-  if (!base) {
-    throw new Error("VITE_API_BASE_URL is not defined");
-  }
+  // base가 없으면 상대경로로 요청(예: Vercel rewrites: /api/*)
+  if (!base) return path;
   if (path.startsWith("http")) return path;
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
 }
@@ -119,4 +118,29 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   return data as T;
+}
+
+// --- Health Check ---
+export type HealthResponse = {
+  ok: boolean;
+  message?: string;
+  ts?: string;
+  // optional details
+  source?: "health" | "projects";
+};
+
+// Some backends may not implement GET /api/health.
+// This helper tries /api/health first, and falls back to a lightweight projects call.
+export async function healthCheck(): Promise<HealthResponse> {
+  try {
+    const res = await api<HealthResponse>("/api/health", { method: "GET" });
+    return { ...res, source: "health" };
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) {
+      // fallback: if projects endpoint responds, backend + proxy are alive
+      await api<any>("/api/projects?limit=1", { method: "GET" });
+      return { ok: true, message: "fallback ok", source: "projects" };
+    }
+    throw e;
+  }
 }
