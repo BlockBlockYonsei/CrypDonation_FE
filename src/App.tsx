@@ -74,6 +74,13 @@ function ProjectRoleGate() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // ✅ Vercel/로컬에서 env가 실제로 주입됐는지 확인용
+    console.log("VITE_API_BASE_URL =", import.meta.env.VITE_API_BASE_URL);
+    console.log("VITE_API_PROXY_TARGET =", (import.meta as any).env?.VITE_API_PROXY_TARGET);
+    console.log("MODE =", import.meta.env.MODE, "DEV =", import.meta.env.DEV, "PROD =", import.meta.env.PROD);
+  }, []);
+
   return (
     <Router>
       <div className="min-h-screen bg-white">
