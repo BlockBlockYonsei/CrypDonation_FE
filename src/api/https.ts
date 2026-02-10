@@ -117,7 +117,37 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     throw new ApiError(String(msg), res.status, data);
   }
 
-  return data as T;
+  const sanitized = sanitizeEc2Urls(data);
+  return sanitized as T;
+}
+
+// --- Global asset URL sanitizer (Mixed Content 방지) ---
+const EC2_HTTP_ORIGIN = "http://15.164.214.69";
+
+function sanitizeEc2Urls<T>(value: T): T {
+  if (value == null) return value;
+
+  if (typeof value === "string") {
+    // "http://15.164.214.69/..." -> "/..."
+    return value.startsWith(EC2_HTTP_ORIGIN)
+      ? (value.slice(EC2_HTTP_ORIGIN.length) as unknown as T)
+      : value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((v) => sanitizeEc2Urls(v)) as unknown as T;
+  }
+
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = sanitizeEc2Urls(v);
+    }
+    return out as T;
+  }
+
+  return value;
 }
 
 // --- Health Check ---
