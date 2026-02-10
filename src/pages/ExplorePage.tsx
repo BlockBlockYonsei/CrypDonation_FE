@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import Navigation from '../components/Navigation';
 import ProjectCard from '../components/ProjectCard';
 import { mockProjects, categories, Project } from '../data/mockData.ts';
+import { ProjectsApi } from "../api/modules/projects.api";
 
 // Types
 // - UI select / filter chips 값과 1:1 매핑
@@ -31,9 +32,6 @@ type FetchProjectsParams = {
 };
 
 async function fetchProjects(params: FetchProjectsParams): Promise<any> {
-  const ENV: any = (import.meta as any).env || {};
-  const API_BASE: string = ENV.VITE_API_BASE ? String(ENV.VITE_API_BASE) : '';
-
   const qs = new URLSearchParams();
   // BE expects category like "All" or specific category name
   if (params.category) qs.set('category', params.category);
@@ -42,15 +40,13 @@ async function fetchProjects(params: FetchProjectsParams): Promise<any> {
   qs.set('page', String(params.page));
   qs.set('limit', String(params.limit));
 
-  const url = `${API_BASE}/api/projects?${qs.toString()}`;
-  const res = await fetch(url);
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Failed to fetch projects: ${res.status} ${text}`);
-  }
-
-  return res.json();
+  return ProjectsApi.list({
+    category: params.category,
+    status: params.status,
+    sort: params.sort,
+    page: params.page,
+    limit: params.limit,
+  });
 }
 
 function toArray<T = any>(value: any): T[] {
