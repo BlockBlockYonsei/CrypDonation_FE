@@ -9,6 +9,7 @@ import UserPage from "./pages/UserPage";
 import ProjectManagePage from "./pages/ProjectManagePage";
 
 import Test from "./pages/ConnectTst";
+import { api } from "./api/https";
 
 function ProjectRoleGate() {
   const { id } = useParams<{ id: string }>();
@@ -32,21 +33,21 @@ function ProjectRoleGate() {
         // ✅ role 판정은 BE access API로 통일 (creator/viewer)
         // - BE: GET /api/projects/:id/access
         // - DEV: auth.js가 x-wallet-address 헤더를 허용
-        const res = await fetch(`/api/projects/${id}/access`, {
-          method: "GET",
-          headers: myWallet
-            ? {
-                "x-wallet-address": myWallet,
-              }
-            : undefined,
-        });
-
-        if (!res.ok) {
+        let data: any;
+        try {
+          data = await api<any>(`/api/projects/${id}/access`, {
+            method: "GET",
+            headers: myWallet
+              ? {
+                  "x-wallet-address": myWallet,
+                }
+              : undefined,
+          });
+        } catch {
           if (!cancelled) setIsCreator(false);
           return;
         }
 
-        const data = await res.json();
         const role = String(data?.role || "").toLowerCase();
 
         if (!cancelled) setIsCreator(role === "creator");

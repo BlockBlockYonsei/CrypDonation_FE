@@ -13,6 +13,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, Info, ExternalLink } from 'lucide-react';
 import Navigation from '../components/Navigation';
+import { api } from "../api/https";
 
 
 // Types (UI에서 사용하는 최소 형태)
@@ -84,12 +85,16 @@ export default function FundingFullPage() {
     (async () => {
       try {
         // 1) 프로젝트 기본 정보는 /api/projects/:id (source of truth)
-        const pRes = await fetch(`/api/projects/${id}`, { signal: ac.signal });
-        const pJson = pRes.ok ? await pRes.json() : null;
+        const pJson = await api<any>(`/api/projects/${id}`, { method: "GET", signal: ac.signal });
 
         // 2) 펀딩 요약은 /api/funding/:id (없거나 404여도 프로젝트는 보여주기)
-        const fRes = await fetch(`/api/funding/${id}`, { signal: ac.signal });
-        const fJson = fRes.ok ? await fRes.json() : null;
+        let fJson: any = null;
+        try {
+          fJson = await api<any>(`/api/funding/${id}`, { method: "GET", signal: ac.signal });
+        } catch {
+          // funding endpoint may be missing/404; keep page usable
+          fJson = null;
+        }
 
         setProjectData(pJson);
         setFundingData(fJson);

@@ -7,6 +7,7 @@ import Navigation from "../components/Navigation";
 import { useQuery } from "@tanstack/react-query";
 import { mockProjects } from "../data/mockData";
 import { ManagingApi } from "../api/modules/managing.api";
+import { api } from "../api/https";
 
 type TabId = "story" | "updates" | "supporters" | "risks";
 
@@ -43,9 +44,7 @@ export default function ProjectManagePage() {
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ["project-manage", id],
     queryFn: async () => {
-      const res = await fetch(`/api/projects/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch project");
-      const data = await res.json();
+      const data = await api<any>(`/api/projects/${id}`, { method: "GET" });
 
       return {
         ...data,

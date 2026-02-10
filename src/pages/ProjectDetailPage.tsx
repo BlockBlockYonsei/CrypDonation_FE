@@ -17,6 +17,7 @@ import { ArrowLeft, CheckCircle, Users } from 'lucide-react';
 import Navigation from '../components/Navigation';
 import FundingPanel from '../components/FundingPanel';
 import { mockProjects } from '../data/mockData.ts';
+import { api } from "../api/https";
 
 // Types
 // - 탭 헤더 버튼과 1:1 매핑
@@ -32,9 +33,7 @@ export default function ProjectDetailPage() {
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ['project', id],
     queryFn: async () => {
-      const res = await fetch(`/api/projects/${id}`);
-      if (!res.ok) throw new Error('Failed to fetch project');
-      const data = await res.json();
+      const data = await api<any>(`/api/projects/${id}`, { method: 'GET' });
 
       // Normalize BE(DB) response -> FE legacy shape
       const walletAddress =

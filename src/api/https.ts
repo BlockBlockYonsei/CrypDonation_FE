@@ -30,7 +30,9 @@ function getBaseUrl() {
 
 function buildUrl(path: string) {
   const base = getBaseUrl();
-  if (!base) return path; // 프록시/상대경로
+  if (!base) {
+    throw new Error("VITE_API_BASE_URL is not defined");
+  }
   if (path.startsWith("http")) return path;
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
 }
